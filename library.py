@@ -14,13 +14,15 @@ def get_with_cache(url, cache_path):
         return page.text
 
 
-def fuzzy_value(fuzzy_dict, fuzzy_key):
-    return fuzzy_dict[fuzzy_name_match(fuzzy_dict.keys(), fuzzy_key)]
+def fuzzy_value(fuzzy_dict, fuzzy_key, scorer=None):
+    return fuzzy_dict[fuzzy_name_match(fuzzy_dict.keys(), fuzzy_key, scorer=scorer)]
 
 
-def fuzzy_name_match(fuzzy_set, name):
-    normalised_name = process.extractOne(
-            name, fuzzy_set, scorer=fuzz.partial_token_sort_ratio)
+def fuzzy_name_match(fuzzy_set, name, scorer=None):
+    if scorer is None:
+        scorer = fuzz.partial_token_sort_ratio
+
+    normalised_name = process.extractOne(name, fuzzy_set, scorer=scorer)
     if normalised_name[1] < 86:
         raise KeyError()
     elif normalised_name[1] < 90:

@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from fuzzywuzzy import process
+from fuzzywuzzy import process, fuzz
 
 from library import get_with_cache, fuzzy_value, normalise_name
 
@@ -57,9 +57,9 @@ def all_candidate_results(tdf_year):
             yield ("{race}-{year}_{stage}".format(race=race, stage=stage, year=year),
                     stage_results["Stage"])
             yield ("{race}-{year}_mountain".format(race=race, stage=stage, year=year),
-                    fuzzy_value(stage_results, "Mountains classification"))
+                    fuzzy_value(stage_results, "Mountains classification", scorer=fuzz.partial_ratio))
             yield ("{race}-{year}_gc".format(race=race, stage=stage, year=year),
-                    fuzzy_value(stage_results, "Final general classification"))
+                    fuzzy_value(stage_results, "General classification", scorer=fuzz.partial_ratio))
             yield ("{race}-{year}_points".format(race=race, stage=stage, year=year),
-                    fuzzy_value(stage_results, "Points classification"))
+                    fuzzy_value(stage_results, "Points classification", scorer=fuzz.partial_ratio))
 
