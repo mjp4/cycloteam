@@ -1,29 +1,20 @@
+from pprint import pprint
 from bs4 import BeautifulSoup
-import requests
+
+from library import get_with_cache, normalise_name
 
 def download_scores(year, race):
-    try:
-        with open("cache/riders_{race}-{year}".format(
-                race=race, year=year), 'r') as f:
-            return f.read()
-    except OSError:
-        page = requests.get("https://www.velogames.com/{race}/{year}/riders.php".format(year=year, race=race))
-        with open("cache/riders_{race}-{year}".format(
-                race=race, year=year), 'w') as f:
-            f.write(page.text)
-        return page.text
+    return get_with_cache(
+        "https://www.velogames.com/{race}/{year}/riders.php".format(
+            year=year, race=race),
+        "cache/riders_{race}-{year}".format(
+            race=race, year=year))
 
-def rider_table(page_text):
+
+def rider_table(year, race):
+    page_text = download_scores(year, race)
     soup = BeautifulSoup(page_text)
     for tr in soup.find('div', class_='content').tbody('tr'):
         tds = tr.find_all('td')
-        yield (tds[1].string, tds[4].string)
-
-def normalise_name(name):
-    return name.partition("(")[0].rstrip()
-
-from pprint import pprint
-
-
-
-pprint(dict(rider_table(download_scores(2014, 'tour-de-france'))))
+        yield (normalise_name(tds[1].string, filter_add=(year, race)),
+                tds[4].string)

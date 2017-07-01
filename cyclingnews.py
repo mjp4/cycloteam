@@ -1,17 +1,15 @@
 from bs4 import BeautifulSoup
-import requests
+from fuzzywuzzy import process
+
+from library import get_with_cache, fuzzy_value, normalise_name
 
 def download_results(year, race, stage):
-    try:
-        with open("cache/{race}-{year}_{stage}".format(
-                race=race, year=year, stage=stage), 'r') as f:
-            return f.read()
-    except OSError:
-        page = requests.get("http://www.cyclingnews.com/races/{race}-{year}/{stage}/results".format(year=year, race=race, stage=stage))
-        with open("cache/{race}-{year}_{stage}".format(
-                race=race, year=year, stage=stage), 'w') as f:
-            f.write(page.text)
-        return page.text
+    return get_with_cache(
+            "http://www.cyclingnews.com/races/{race}-{year}/{stage}/results/".format(
+                race=race, year=year, stage=stage),
+            "cache/{race}-{year}_{stage}".format(
+                race=race, year=year, stage=stage))
+
 
 def result_tables(page_text):
     soup = BeautifulSoup(page_text)
@@ -19,21 +17,22 @@ def result_tables(page_text):
         caption = div_results.caption.string if div_results.caption else "Stage"
         yield (caption, dict(tbody2seq(div_results.tbody)))
 
-def normalise_name(name):
-    return name.partition("(")[0].rstrip()
 
 def tbody2seq(tbody):
     for tr in tbody.find_all('tr'):
-        if tr.td:
+        tds = tr.find_all('td')
+        if tds:
             try:
-                rank = int(tr.td.string)
+                rank = int(tds[0].string)
             except ValueError:
                 continue
-            name = normalise_name(tr.td.next_sibling.string)
-            yield (name, rank)
+            name = normalise_name(tds[1].string, filter_apply=True)
+            if name is not None:
+                yield (name, rank)
 
 selected_races = [
-        (0, "criterium-du-dauphine", 8, {2016})
+        (0, "criterium-du-dauphine", 8, {2016}),
+        (0, "tour-de-suisse", 9, set())
         ]
 
 def all_candidate_results(tdf_year):
@@ -47,24 +46,20 @@ def all_candidate_results(tdf_year):
             else:
                 stages = ['stage-' + str(n) for n in range(1, selected_race[2] + 1)]
 
-            print(stages)
-            for stage in stages:
+            for stage in stages[:-1]:
                 stage_page = download_results(year, race, stage)
                 stage_results = dict(result_tables(stage_page))
-                print(stage_results.keys())
-                if "Stage" in stage_results:
-                    yield ("{race}-{year}_{stage}".format(race=race, stage=stage, year=year),
-                            stage_results["Stage"])
-                if "Mountains classification" in stage_results:
-                    yield ("{race}-{year}_mountain".format(race=race, stage=stage, year=year),
-                            stage_results["Mountains classification"])
-                if "Points classification" in stage_results:
-                    yield ("{race}-{year}_point".format(race=race, stage=stage, year=year),
-                            stage_results["Points classification"])
-                if "Final general classification" in stage_results:
-                    yield ("{race}-{year}_gc".format(race=race, stage=stage, year=year),
-                            stage_results["Final general classification"])
+                yield ("{race}-{year}_{stage}".format(race=race, stage=stage, year=year),
+                        stage_results["Stage"])
+            stage = stages[-1]
+            stage_page = download_results(year, race, stage)
+            stage_results = dict(result_tables(stage_page))
+            yield ("{race}-{year}_{stage}".format(race=race, stage=stage, year=year),
+                    stage_results["Stage"])
+            yield ("{race}-{year}_mountain".format(race=race, stage=stage, year=year),
+                    fuzzy_value(stage_results, "Mountains classification"))
+            yield ("{race}-{year}_gc".format(race=race, stage=stage, year=year),
+                    fuzzy_value(stage_results, "Final general classification"))
+            yield ("{race}-{year}_points".format(race=race, stage=stage, year=year),
+                    fuzzy_value(stage_results, "Points classification"))
 
-from pprint import pprint
-
-pprint(dict(all_candidate_results(2016)))
